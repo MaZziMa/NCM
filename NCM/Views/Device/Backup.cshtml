@@ -1,0 +1,24 @@
+﻿@model NCM.Models.Device
+
+@{
+    ViewData["Title"] = "Backup Cấu hình";
+}
+
+<h2>@ViewData["Title"]</h2>
+
+<div class="card">
+    <div class="card-body">
+        <h4>Thiết bị: @Model.Name</h4>
+        <p><strong>IP:</strong> @Model.IPAddress</p>
+        <p><strong>Loại:</strong> @Model.Type</p>
+        <p><strong>Trạng thái:</strong> @(Model.Status ? "Online" : "Offline")</p>
+
+        <form asp-action="BackupConfirmed" method="post">
+            @* Hidden để truyền id thiết bị *@
+            <input type="hidden" asp-for="DeviceId" />
+
+            <button type="submit" class="btn btn-primary">Backup ngay</button>
+            <a asp-action="Index" class="btn btn-secondary">Quay lại</a>
+        </form>
+    </div>
+</div>

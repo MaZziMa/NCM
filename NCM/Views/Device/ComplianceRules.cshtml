@@ -1,0 +1,15 @@
+﻿@model IEnumerable<NCM.Models.ComplianceRule>
+<h2>Danh sách Rule</h2>
+<table class="table">
+    <thead><tr><th>Name</th><th>MustContain</th><th>MustNotContain</th></tr></thead>
+    <tbody>
+        @foreach (var r in Model)
+        {
+            <tr>
+                <td>@r.Name</td>
+                <td>@r.MustContain</td>
+                <td>@r.MustNotContain</td>
+            </tr>
+        }
+    </tbody>
+</table>

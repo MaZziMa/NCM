@@ -1,0 +1,82 @@
+﻿@model IEnumerable<NCM.Models.Device>
+
+@{
+    ViewData["Title"] = "Danh sách thiết bị";
+}
+
+<h2>@ViewData["Title"]</h2>
+
+@if (TempData["Message"] != null)
+{
+    <div class="alert alert-info">
+        @TempData["Message"]
+    </div>
+}
+
+<p>
+    <a asp-action="Create" class="btn btn-primary">Thêm thiết bị mới</a>
+    <a asp-action="ComplianceRules" class="btn btn-secondary">Quản lý Compliance Rules</a>
+</p>
+
+<table class="table table-striped">
+    <thead>
+        <tr>
+            <th>Tên thiết bị</th>
+            <th>IP Address</th>
+            <th>Loại</th>
+            <th>Trạng thái</th>
+            <th>Cấu hình gần nhất</th>
+            <th>Thao tác</th>
+            <th>Backup</th>
+            <th>Cấu hình</th>
+            <th>Compliance</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var device in Model)
+        {
+            <tr>
+                <td>@device.Name</td>
+                <td>@device.IPAddress</td>
+                <td>@device.Type</td>
+                <td>
+                    @if (device.Status)
+                    {
+                        <span class="badge bg-success">Online</span>
+                    }
+                    else
+                    {
+                        <span class="badge bg-secondary">Offline</span>
+                    }
+                </td>
+                <td>
+                    @device.DeviceConfigs.OrderByDescending(c => c.CreatedAt).FirstOrDefault()?.CreatedAt.ToString("g") ?? "Chưa backup"
+                </td>
+                <td>
+                    <a asp-action="Details" asp-route-id="@device.DeviceId" class="btn btn-sm btn-info">Xem</a>
+                    <a asp-action="Edit" asp-route-id="@device.DeviceId" class="btn btn-sm btn-warning">Sửa</a>
+                    <a asp-action="Delete" asp-route-id="@device.DeviceId" class="btn btn-sm btn-danger">Xóa</a>
+                </td>
+                <td>
+                    <a asp-action="Backup" asp-route-id="@device.DeviceId" class="btn btn-sm btn-primary">Backup ngay</a>
+                </td>
+                <td>
+                    <a asp-action="Configs" asp-route-id="@device.DeviceId" class="btn btn-sm btn-outline-secondary">Xem lịch sử</a>
+                </td>
+                <td>
+                    @{
+                        var lastConfig = device.DeviceConfigs.OrderByDescending(c => c.CreatedAt).FirstOrDefault();
+                    }
+                    @if (lastConfig != null)
+                    {
+                        <a asp-action="CheckCompliance" asp-route-configId="@lastConfig.ConfigId" class="btn btn-sm btn-outline-success">Check ngay</a>
+                    }
+                    else
+                    {
+                        <span class="text-muted">Chưa có config</span>
+                    }
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>

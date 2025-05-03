@@ -1,0 +1,20 @@
+﻿@model IEnumerable<NCM.Models.ComplianceResult>
+<h2>Kết quả Compliance cho Config @ViewBag.ConfigId</h2>
+<table class="table">
+    <thead><tr><th>Rule</th><th>Kết quả</th><th>Thời gian</th></tr></thead>
+    <tbody>
+        @foreach (var r in Model)
+        {
+            <tr>
+                <td>@r.ComplianceRule.Name</td>
+                <td>
+                    @(r.IsCompliant
+                        ? "<span class='text-success'>PASS</span>"
+                        : "<span class='text-danger'>FAIL</span>")
+                    @Html.Raw("")
+                </td>
+                <td>@r.CheckedAt</td>
+            </tr>
+        }
+    </tbody>
+</table>

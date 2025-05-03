@@ -1,0 +1,36 @@
+﻿@model NCM.Models.Device
+@{
+    ViewData["Title"] = "Chỉnh sửa thiết bị";
+}
+<h2>@ViewData["Title"]</h2>
+
+<form asp-action="Edit" method="post">
+    <input type="hidden" asp-for="DeviceId" />
+    <div class="form-group">
+        <label asp-for="Name"></label>
+        <input asp-for="Name" class="form-control" />
+        <span asp-validation-for="Name" class="text-danger"></span>
+    </div>
+    <div class="form-group">
+        <label asp-for="IPAddress"></label>
+        <input asp-for="IPAddress" class="form-control" />
+        <span asp-validation-for="IPAddress" class="text-danger"></span>
+    </div>
+    <div class="form-group">
+        <label asp-for="Type"></label>
+        <input asp-for="Type" class="form-control" />
+        <span asp-validation-for="Type" class="text-danger"></span>
+    </div>
+    <div class="form-group form-check">
+        <input asp-for="Status" class="form-check-input" />
+        <label asp-for="Status" class="form-check-label"></label>
+    </div>
+    <button type="submit" class="btn btn-success">Cập nhật</button>
+    <a asp-action="Index" class="btn btn-secondary">Hủy</a>
+</form>
+
+@section Scripts {
+    @{
+        await Html.RenderPartialAsync("_ValidationScriptsPartial");
+    }
+}

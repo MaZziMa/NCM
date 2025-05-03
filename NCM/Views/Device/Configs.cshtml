@@ -1,0 +1,36 @@
+﻿@model IEnumerable<NCM.Models.DeviceConfig>
+
+@{
+    var device = ViewBag.Device as NCM.Models.Device;
+    ViewData["Title"] = $"Lịch sử cấu hình - {device.Name}";
+}
+
+<h2>@ViewData["Title"]</h2>
+
+<p>
+    <a asp-action="Index" class="btn btn-secondary">Quay lại danh sách thiết bị</a>
+</p>
+
+<table class="table table-striped">
+    <thead>
+        <tr>
+            <th>Thời gian</th>
+            <th>Cấu hình</th>
+            <th>Thao tác</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var config in Model)
+        {
+            <tr>
+                <td>@config.CreatedAt.ToString("g")</td>
+                <td>
+                    <pre>@config.ConfigText</pre>
+                </td>
+                <td>
+                    <a asp-action="Diff" asp-route-oldId="@config.ConfigId" asp-route-newId="@Model.FirstOrDefault()?.ConfigId" class="btn btn-sm btn-info">So sánh</a>
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>
