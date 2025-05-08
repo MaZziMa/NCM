@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 
 namespace NCM.Models
@@ -14,17 +15,23 @@ namespace NCM.Models
         [Required, StringLength(50)]
         public string IPAddress { get; set; }
 
-        [StringLength(50)]
         public string Type { get; set; }
 
         public bool Status { get; set; }
 
         public DateTime? LastBackupTime { get; set; }
+
+        [Required]
+        [StringLength(50)]
+        [Display(Name = "SSH Username")]
         public string SshUsername { get; set; }
-        public string SshPassword { get; set; } // hoặc mã hóa sau
+
+        [Required]
+        [DataType(DataType.Password)]
+        [Display(Name = "SSH Password")]
+        public string SshPassword { get; set; }  // Đã mã hóa trước khi lưu
 
         // Navigation: lịch sử backup
-
         public virtual ICollection<DeviceConfig> DeviceConfigs { get; set; }
             = new HashSet<DeviceConfig>();
     }

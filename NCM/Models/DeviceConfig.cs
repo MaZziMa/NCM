@@ -7,16 +7,16 @@ namespace NCM.Models
     public class DeviceConfig
     {
         [Key]
-        public int ConfigId { get; set; }                 // ← primary key
+        public int ConfigId { get; set; }
 
         [Required]
-        public int DeviceId { get; set; }                 // ← foreign key
+        public int DeviceId { get; set; }
 
         [Required]
-        public string ConfigText { get; set; }
+        public string ConfigContent { get; set; }
 
         [Required]
-        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        public DateTime UploadTime { get; set; }
 
         [ForeignKey("DeviceId")]
         public virtual Device Device { get; set; }

@@ -1,23 +1,26 @@
 ﻿@model NCM.Models.Device
+
 @{
-    ViewData["Title"] = "Chỉnh sửa thiết bị";
+    ViewData["Title"] = "Edit Device";
 }
-<h2>@ViewData["Title"]</h2>
+
+<h1>Edit Device</h1>
 
 <form asp-action="Edit" method="post">
     <input type="hidden" asp-for="DeviceId" />
+
     <div class="form-group">
-        <label asp-for="Name"></label>
+        <label asp-for="Name" class="control-label"></label>
         <input asp-for="Name" class="form-control" />
         <span asp-validation-for="Name" class="text-danger"></span>
     </div>
     <div class="form-group">
-        <label asp-for="IPAddress"></label>
+        <label asp-for="IPAddress" class="control-label"></label>
         <input asp-for="IPAddress" class="form-control" />
         <span asp-validation-for="IPAddress" class="text-danger"></span>
     </div>
     <div class="form-group">
-        <label asp-for="Type"></label>
+        <label asp-for="Type" class="control-label"></label>
         <input asp-for="Type" class="form-control" />
         <span asp-validation-for="Type" class="text-danger"></span>
     </div>
@@ -25,8 +28,24 @@
         <input asp-for="Status" class="form-check-input" />
         <label asp-for="Status" class="form-check-label"></label>
     </div>
-    <button type="submit" class="btn btn-success">Cập nhật</button>
-    <a asp-action="Index" class="btn btn-secondary">Hủy</a>
+    <div class="form-group">
+        <label asp-for="SshUsername" class="control-label"></label>
+        <input asp-for="SshUsername" class="form-control" />
+        <span asp-validation-for="SshUsername" class="text-danger"></span>
+    </div>
+    <div class="form-group">
+        <label asp-for="SshPassword" class="control-label"></label>
+        <input asp-for="SshPassword" type="password" class="form-control" />
+        <span asp-validation-for="SshPassword" class="text-danger"></span>
+    </div>
+    <div class="form-group">
+        <label asp-for="LastBackupTime" class="control-label"></label>
+        <input asp-for="LastBackupTime" class="form-control" readonly />
+    </div>
+    <div class="form-group">
+        <input type="submit" value="Save Changes" class="btn btn-primary" />
+        <a asp-action="Index" class="btn btn-secondary">Back to List</a>
+    </div>
 </form>
 
 @section Scripts {

@@ -18,7 +18,6 @@ namespace NCM.Models
         [Required]
         public bool IsCompliant { get; set; }
 
-        [Required]
         public DateTime CheckedAt { get; set; } = DateTime.UtcNow;
 
         [ForeignKey("ConfigId")]

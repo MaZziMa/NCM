@@ -1,31 +1,22 @@
-﻿@using DiffPlex.DiffBuilder.Model
-
-@model SideBySideDiffModel
+﻿@model DiffPlex.DiffBuilder.Model.DiffPaneModel
 
 @{
-    var oldCfg = ViewBag.OldConfig as NCM.Models.DeviceConfig;
-    var newCfg = ViewBag.NewConfig as NCM.Models.DeviceConfig;
-    ViewData["Title"] = $"So sánh cấu hình: {oldCfg?.CreatedAt:g} → {newCfg?.CreatedAt:g}";
+    ViewData["Title"] = "Config Diff";
 }
 
-<h2>@ViewData["Title"]</h2>
+<h1>Configuration Difference</h1>
 
-<table class="table table-bordered">
-    <thead>
-        <tr>
-            <th>Cấu hình cũ</th>
-            <th>Cấu hình mới</th>
-        </tr>
-    </thead>
-    <tbody>
-        @for (int i = 0; i < Model.OldText.Lines.Count; i++)
-        {
-            var oldLine = Model.OldText.Lines[i];
-            var newLine = Model.NewText.Lines[i];
-            <tr>
-                <td class="@oldLine.Type">@Html.Raw(oldLine.Text)</td>
-                <td class="@newLine.Type">@Html.Raw(newLine.Text)</td>
-            </tr>
-        }
-    </tbody>
-</table>
+<pre>
+    @foreach (var line in Model.Lines)
+    {
+    <span class="diff-@line.Type.ToString().ToLower()">@line.Text</span>
+    }
+</pre>
+
+<a asp-action="Index" class="btn btn-secondary">Back to List</a>
+
+<style>
+    .diff-unchanged { color: black; }
+    .diff-added { background-color: #d4fcbc; }
+    .diff-deleted { background-color: #fbb6c2; }
+</style>

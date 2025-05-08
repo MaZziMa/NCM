@@ -1,34 +1,53 @@
 ﻿@model IEnumerable<NCM.Models.DeviceConfig>
 
 @{
+    ViewData["Title"] = "Configuration History";
+    // Lấy thông tin Device từ ViewBag nếu controller đã set:
     var device = ViewBag.Device as NCM.Models.Device;
-    ViewData["Title"] = $"Lịch sử cấu hình - {device.Name}";
+    // Sắp xếp config mới nhất trước
+    var configs = Model.OrderByDescending(c => c.UploadTime).ToList();
 }
 
-<h2>@ViewData["Title"]</h2>
+<h1>Cấu hình của @device?.Name (@device?.IPAddress)</h1>
 
 <p>
-    <a asp-action="Index" class="btn btn-secondary">Quay lại danh sách thiết bị</a>
+    <a asp-action="Index" class="btn btn-secondary">← Back to Devices</a>
 </p>
 
 <table class="table table-striped">
     <thead>
         <tr>
-            <th>Thời gian</th>
-            <th>Cấu hình</th>
-            <th>Thao tác</th>
+            <th>Upload Time</th>
+            <th>Actions</th>
         </tr>
     </thead>
     <tbody>
-        @foreach (var config in Model)
+        @for (int i = 0; i < configs.Count; i++)
         {
+            var cfg = configs[i];
+            // Phiên config trước để diff (nếu có)
+            var prevCfg = i + 1 < configs.Count ? configs[i + 1] : null;
             <tr>
-                <td>@config.CreatedAt.ToString("g")</td>
+                <td>@cfg.UploadTime.ToLocalTime().ToString("g")</td>
                 <td>
-                    <pre>@config.ConfigText</pre>
-                </td>
-                <td>
-                    <a asp-action="Diff" asp-route-oldId="@config.ConfigId" asp-route-newId="@Model.FirstOrDefault()?.ConfigId" class="btn btn-sm btn-info">So sánh</a>
+                    <a asp-action="Details" asp-route-id="@cfg.ConfigId">View</a>
+                    @if (prevCfg != null)
+                    {
+                        <text> | </text>
+                        <a asp-action="Diff"
+                           asp-route-id="@cfg.ConfigId"
+                           asp-route-oldId="@prevCfg.ConfigId">
+                            Diff
+                        </a>
+                    }
+                    @if (prevCfg != null)
+                    {
+                        <text> | </text>
+                        <a asp-action="ComplianceResults"
+                           asp-route-id="@cfg.ConfigId">
+                            Compliance
+                        </a>
+                    }
                 </td>
             </tr>
         }

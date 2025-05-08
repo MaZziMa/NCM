@@ -8,10 +8,12 @@ namespace NCM.Models
         public int RuleId { get; set; }
 
         [Required, StringLength(100)]
-        public string Name { get; set; }
+        public string RuleName { get; set; }
 
-        public string MustContain { get; set; }
+        [Required, StringLength(200)]
+        public string RequiredString { get; set; }
 
-        public string MustNotContain { get; set; }
+        [StringLength(250)]
+        public string Description { get; set; }
     }
 }

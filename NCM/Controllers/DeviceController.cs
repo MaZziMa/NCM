@@ -1,95 +1,174 @@
 ﻿using System;
-using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
-using Renci.SshNet; // Thêm thư viện SSH.NET
-using DiffPlex;
-using DiffPlex.DiffBuilder;
-using DiffPlex.DiffBuilder.Model;
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
+using Renci.SshNet;
+
+using DiffPlex.DiffBuilder;
 using NCM.Data;
 using NCM.Models;
-using Renci.SshNet.Common;
+using DiffPlex;
 
 namespace NCM.Controllers
 {
     public class DeviceController : Controller
     {
         private readonly ApplicationDbContext _context;
-        private readonly IWebHostEnvironment _env;
+        private readonly IDataProtector _protector;
 
-        public DeviceController(ApplicationDbContext context, IWebHostEnvironment env)
+        public DeviceController(
+            ApplicationDbContext context,
+            IDataProtectionProvider dataProtectionProvider)
         {
             _context = context;
-            _env = env;
+            _protector = dataProtectionProvider.CreateProtector("SSHPasswords");
         }
 
-        // ===== Device CRUD =====
-
+        // GET: Device
         public async Task<IActionResult> Index()
         {
-            var list = await _context.Devices.AsNoTracking().ToListAsync();
-            return View(list);
+            var devices = await _context.Devices
+                .Include(d => d.DeviceConfigs)
+                .ToListAsync();
+            return View(devices);
         }
 
-        public async Task<IActionResult> Details(int? id)
+        // GET: Device/Create
+        public IActionResult Create()
         {
-            if (id == null) return NotFound();
-            var device = await _context.Devices
-                .AsNoTracking()
-                .FirstOrDefaultAsync(d => d.DeviceId == id);
-            if (device == null) return NotFound();
-            return View(device);
+            return View();
         }
 
-     
+        // POST: Device/Create
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> Create(
+            [Bind("Name,IPAddress,Type,Status,SshUsername,SshPassword")] Device device)
+        {
+            if (!ModelState.IsValid)
+                return View(device);
 
+            // 1. Ping test
+            try
+            {
+                using var ping = new System.Net.NetworkInformation.Ping();
+                var reply = await ping.SendPingAsync(device.IPAddress, 2000);
+                if (reply.Status != System.Net.NetworkInformation.IPStatus.Success)
+                {
+                    ModelState.AddModelError(
+                        nameof(device.IPAddress),
+                        "Không thể ping đến IP này. Vui lòng kiểm tra kết nối.");
+                    return View(device);
+                }
+            }
+            catch
+            {
+                ModelState.AddModelError(
+                    nameof(device.IPAddress),
+                    "Lỗi ping. IP không hợp lệ hoặc mạng có vấn đề.");
+                return View(device);
+            }
 
+            // 2. SSH credential test
+            var rawPassword = device.SshPassword;
+            try
+            {
+                using var ssh = new SshClient(
+                    device.IPAddress,
+                    device.SshUsername,
+                    rawPassword)
+                {
+                    ConnectionInfo = { Timeout = TimeSpan.FromSeconds(5) }
+                };
+                ssh.Connect();
+                if (!ssh.IsConnected)
+                    throw new Exception("SSH không kết nối được.");
+                ssh.Disconnect();
+            }
+            catch
+            {
+                ModelState.AddModelError(
+                    string.Empty,
+                    "SSH login thất bại. Kiểm tra lại username/password và SSH port.");
+                return View(device);
+            }
+
+            // 3. Protect password & save to DB
+            device.SshPassword = _protector.Protect(rawPassword);
+            _context.Add(device);
+            await _context.SaveChangesAsync();
+
+            // 4. Write SSH script file
+            var sshFolder = Path.Combine(
+                Directory.GetCurrentDirectory(), "SSH");
+            Directory.CreateDirectory(sshFolder);
+            var scriptPath = Path.Combine(
+                sshFolder, $"{device.DeviceId}.ssh");
+            await System.IO.File.WriteAllTextAsync(
+                scriptPath,
+                $"ssh {device.SshUsername}@{device.IPAddress}\n");
+
+            return RedirectToAction(nameof(Index));
+        }
+
+        // GET: Device/Edit/5
         public async Task<IActionResult> Edit(int? id)
         {
             if (id == null) return NotFound();
+
             var device = await _context.Devices.FindAsync(id);
             if (device == null) return NotFound();
+
+            // Unprotect to show in form
+            device.SshPassword = _protector.Unprotect(device.SshPassword);
             return View(device);
         }
 
+        // POST: Device/Edit/5
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Edit(int id, [Bind("DeviceId,Name,IPAddress,Type,Status")] Device device)
+        public async Task<IActionResult> Edit(
+            int id,
+            [Bind("DeviceId,Name,IPAddress,Type,Status,SshUsername,SshPassword,LastBackupTime")] Device device)
         {
             if (id != device.DeviceId) return NotFound();
-            if (ModelState.IsValid)
+            if (!ModelState.IsValid) return View(device);
+
+            // Optionally repeat ping/SSH test here...
+
+            // Protect password before save
+            device.SshPassword = _protector.Protect(device.SshPassword);
+
+            try
             {
-                try
-                {
-                    _context.Update(device);
-                    await _context.SaveChangesAsync();
-                }
-                catch (DbUpdateConcurrencyException)
-                {
-                    if (!await _context.Devices.AnyAsync(e => e.DeviceId == id))
-                        return NotFound();
-                    else
-                        throw;
-                }
-                return RedirectToAction(nameof(Index));
+                _context.Update(device);
+                await _context.SaveChangesAsync();
             }
-            return View(device);
+            catch (DbUpdateConcurrencyException)
+            {
+                if (!_context.Devices.Any(e => e.DeviceId == id))
+                    return NotFound();
+                throw;
+            }
+            return RedirectToAction(nameof(Index));
         }
 
+        // GET: Device/Delete/5
         public async Task<IActionResult> Delete(int? id)
         {
             if (id == null) return NotFound();
+
             var device = await _context.Devices
-                .AsNoTracking()
-                .FirstOrDefaultAsync(d => d.DeviceId == id);
+                .FirstOrDefaultAsync(m => m.DeviceId == id);
             if (device == null) return NotFound();
+
             return View(device);
         }
 
+        // POST: Device/Delete/5
         [HttpPost, ActionName("Delete")]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> DeleteConfirmed(int id)
@@ -99,224 +178,90 @@ namespace NCM.Controllers
             {
                 _context.Devices.Remove(device);
                 await _context.SaveChangesAsync();
+                // Remove SSH script
+                var sshFile = Path.Combine(
+                    Directory.GetCurrentDirectory(),
+                    "SSH", $"{id}.ssh");
+                if (System.IO.File.Exists(sshFile))
+                    System.IO.File.Delete(sshFile);
             }
             return RedirectToAction(nameof(Index));
         }
 
-        // ===== Backup Configuration =====
-
-        // GET: /Device/Backup/5
-        public async Task<IActionResult> Backup(int id)
+        // GET: Device/Configs/5
+        public async Task<IActionResult> Configs(int? id)
         {
-            var device = await _context.Devices.FindAsync(id);
-            if (device == null) return NotFound();
-            return View(device);
-        }
+            if (id == null) return NotFound();
 
-        // POST: /Device/BackupConfirmed/5
-        [HttpPost, ActionName("BackupConfirmed")]
-        [ValidateAntiForgeryToken]
-        public async Task<IActionResult> BackupConfirmed(int id)
-        {
-            var device = await _context.Devices.FindAsync(id);
-            if (device == null)
-            {
-                TempData["Message"] = "Thiết bị không tồn tại!";
-                return RedirectToAction(nameof(Index));
-            }
-
-            // Ensure SSH credentials exist
-            if (string.IsNullOrEmpty(device.SshUsername) || string.IsNullOrEmpty(device.SshPassword))
-            {
-                TempData["Message"] = "Thiết bị chưa có thông tin SSH!";
-                return RedirectToAction(nameof(Index));
-            }
-
-            try
-            {
-                // Step 1: Connect via SSH and fetch the running configuration
-                string configText;
-                using (var ssh = new SshClient(device.IPAddress, 22, device.SshUsername, device.SshPassword))
-                {
-                    ssh.Connect();
-                    configText = ssh.RunCommand("show running-config").Result;
-                    ssh.Disconnect();
-                }
-
-                // Step 2: Save the configuration to the database
-                var newConfig = new DeviceConfig
-                {
-                    DeviceId = id,
-                    ConfigText = configText,
-                    CreatedAt = DateTime.UtcNow
-                };
-                _context.DeviceConfigs.Add(newConfig);
-
-                // Step 3: Update the device's last backup time
-                device.LastBackupTime = newConfig.CreatedAt;
-                _context.Devices.Update(device);
-
-                await _context.SaveChangesAsync();
-
-                TempData["Message"] = "Backup thành công và cấu hình đã được lưu.";
-            }
-            catch (SshException sshEx)
-            {
-                // Handle SSH-specific errors
-                TempData["Message"] = $"Lỗi kết nối SSH: {sshEx.Message}";
-            }
-            catch (Exception ex)
-            {
-                // Handle general errors
-                TempData["Message"] = $"Backup lỗi: {ex.Message}";
-            }
-
-            return RedirectToAction(nameof(Index));
-        }
-
-        // ===== 1) Xem lịch sử backup =====
-
-        // GET: /Device/Configs/5
-        public async Task<IActionResult> Configs(int id)
-        {
             var device = await _context.Devices
                 .Include(d => d.DeviceConfigs)
-                .AsNoTracking()
                 .FirstOrDefaultAsync(d => d.DeviceId == id);
             if (device == null) return NotFound();
 
             ViewBag.Device = device;
-            var configs = device.DeviceConfigs
-                                .OrderByDescending(c => c.CreatedAt)
-                                .ToList();
-            return View(configs);
+            return View(device.DeviceConfigs);
         }
 
-        // ===== 2) So sánh diff =====
-
-        // GET: /Device/Diff?oldId=3&newId=4
-        public async Task<IActionResult> Diff(int oldId, int newId)
+        // GET: Device/Diff?id=...&oldId=...
+        public async Task<IActionResult> Diff(int id, int oldId)
         {
-            var oldCfg = await _context.DeviceConfigs.FindAsync(oldId);
-            var newCfg = await _context.DeviceConfigs.FindAsync(newId);
-            if (oldCfg == null || newCfg == null) return NotFound();
+            var newCfg = await _context.DeviceConfigs
+                .FirstOrDefaultAsync(c => c.ConfigId == id);
+            var oldCfg = await _context.DeviceConfigs
+                .FirstOrDefaultAsync(c => c.ConfigId == oldId);
+            if (newCfg == null || oldCfg == null)
+                return NotFound();
 
-            var differ = new Differ();
-            var builder = new SideBySideDiffBuilder(differ);
-            var diff = builder.BuildDiffModel(oldCfg.ConfigText, newCfg.ConfigText);
+            var differ = new SideBySideDiffBuilder(new Differ());
+            var model = differ.BuildDiffModel(
+                oldCfg.ConfigContent,
+                newCfg.ConfigContent);
 
-            ViewBag.OldConfig = oldCfg;
-            ViewBag.NewConfig = newCfg;
-            return View(diff);
+            return View(model);
         }
 
-        // ===== 3) Compliance =====
-
-        // GET: /Device/ComplianceRules
-        public async Task<IActionResult> ComplianceRules()
+        // POST or GET: Device/CheckCompliance/5
+        public async Task<IActionResult> CheckCompliance(int id)
         {
-            var rules = await _context.ComplianceRules
-                .AsNoTracking()
-                .ToListAsync();
-            return View(rules);
-        }
-
-        // GET: /Device/CheckCompliance/5
-        public async Task<IActionResult> CheckCompliance(int configId)
-        {
-            var cfg = await _context.DeviceConfigs.FindAsync(configId);
-            if (cfg == null) return NotFound();
-
-            // Xoá kết quả cũ
-            var oldR = _context.ComplianceResults
-                .Where(r => r.ConfigId == configId);
-            _context.ComplianceResults.RemoveRange(oldR);
+            var config = await _context.DeviceConfigs.FindAsync(id);
+            if (config == null) return NotFound();
 
             var rules = await _context.ComplianceRules.ToListAsync();
-            foreach (var r in rules)
-            {
-                bool ok = true;
-                if (!string.IsNullOrEmpty(r.MustContain)
-                    && !cfg.ConfigText.Contains(r.MustContain))
-                    ok = false;
-                if (!string.IsNullOrEmpty(r.MustNotContain)
-                    && cfg.ConfigText.Contains(r.MustNotContain))
-                    ok = false;
 
-                _context.ComplianceResults.Add(new ComplianceResult
+            // Remove old results
+            var oldResults = _context.ComplianceResults
+                .Where(r => r.ConfigId == id);
+            _context.ComplianceResults.RemoveRange(oldResults);
+
+            // Evaluate each rule
+            foreach (var rule in rules)
+            {
+                bool ok = config.ConfigContent
+                    .Contains(rule.RequiredString);
+                var result = new ComplianceResult
                 {
-                    ConfigId = configId,
-                    RuleId = r.RuleId,
+                    ConfigId = id,
+                    RuleId = rule.RuleId,
                     IsCompliant = ok,
                     CheckedAt = DateTime.UtcNow
-                });
+                };
+                _context.ComplianceResults.Add(result);
             }
             await _context.SaveChangesAsync();
-            return RedirectToAction(nameof(ComplianceResults), new { configId });
+
+            return RedirectToAction(nameof(ComplianceResults), new { id });
         }
 
-        // GET: /Device/ComplianceResults/5
-        public async Task<IActionResult> ComplianceResults(int configId)
+        // GET: Device/ComplianceResults/5
+        public async Task<IActionResult> ComplianceResults(int id)
         {
             var results = await _context.ComplianceResults
                 .Include(r => r.ComplianceRule)
-                .Where(r => r.ConfigId == configId)
-                .OrderByDescending(r => r.CheckedAt)
+                .Where(r => r.ConfigId == id)
                 .ToListAsync();
-            ViewBag.ConfigId = configId;
+            if (results.Count == 0)
+                ViewBag.Message = "Chưa có kết quả compliance. Vui lòng kiểm tra.";
             return View(results);
         }
-
-
-        // GET: /Device/Create
-        public IActionResult Create()
-        {
-            return View();
-        }
-
-        // POST: /Device/Create
-        [HttpPost]
-        [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Create(
-            [Bind("Name,IPAddress,Type,Status")] Device device,
-            string SshUsername,
-            string SshPassword)
-        {
-            if (ModelState.IsValid)
-            {
-                // Validate SSH credentials before saving
-                try
-                {
-                    using var client = new SshClient(device.IPAddress, 22, SshUsername, SshPassword);
-                    client.Connect();
-
-                    // Test a basic command to ensure SSH works
-                    var cmd = client.RunCommand("show running-config");
-                    var result = cmd.Result;
-
-                    client.Disconnect();
-
-                    // Save the device to the database after successful SSH validation
-                    _context.Add(device);
-                    await _context.SaveChangesAsync();
-
-                    // Save SSH credentials securely
-                    string sshInfo = $"{device.IPAddress},{SshUsername},{SshPassword}";
-                    string sshDir = Path.Combine(_env.ContentRootPath, "SSH");
-                    Directory.CreateDirectory(sshDir);
-                    System.IO.File.WriteAllText(Path.Combine(sshDir, $"{device.DeviceId}.ssh"), sshInfo);
-
-                    TempData["Message"] = "Device added successfully, and SSH is valid!";
-                    return RedirectToAction(nameof(Index));
-                }
-                catch (Exception ex)
-                {
-                    // Handle SSH errors
-                    ModelState.AddModelError(string.Empty, $"SSH validation failed: {ex.Message}");
-                }
-            }
-            return View(device);
-        }
-
     }
 }

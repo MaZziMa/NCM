@@ -1,63 +1,49 @@
 ﻿@model NCM.Models.Device
 
 @{
-    ViewData["Title"] = "Thêm thiết bị và kiểm tra SSH";
+    ViewData["Title"] = "Create Device";
 }
 
-<h2>@ViewData["Title"]</h2>
+<h1>Create Device</h1>
 
 <form asp-action="Create" method="post">
-    @if (!ViewData.ModelState.IsValid)
-    {
-        <div class="alert alert-danger">
-            @Html.ValidationSummary(false, "", new { @class = "text-danger" })
-        </div>
-    }
-
-    <!-- Device Information Fields -->
     <div class="form-group">
-        <label asp-for="Name" class="form-label">Tên thiết bị</label>
-        <input asp-for="Name" class="form-control" required />
+        <label asp-for="Name" class="control-label"></label>
+        <input asp-for="Name" class="form-control" />
         <span asp-validation-for="Name" class="text-danger"></span>
     </div>
     <div class="form-group">
-        <label asp-for="IPAddress" class="form-label">Địa chỉ IP</label>
-        <input asp-for="IPAddress" class="form-control" required />
+        <label asp-for="IPAddress" class="control-label"></label>
+        <input asp-for="IPAddress" class="form-control" />
         <span asp-validation-for="IPAddress" class="text-danger"></span>
     </div>
     <div class="form-group">
-        <label asp-for="Type" class="form-label">Loại thiết bị</label>
-        <input asp-for="Type" class="form-control" required />
+        <label asp-for="Type" class="control-label"></label>
+        <input asp-for="Type" class="form-control" />
         <span asp-validation-for="Type" class="text-danger"></span>
     </div>
-    <div class="form-group">
-        <label asp-for="Status" class="form-label">Trạng thái</label>
-        <select asp-for="Status" class="form-control">
-            <option value="true">Online</option>
-            <option value="false">Offline</option>
-        </select>
-        <span asp-validation-for="Status" class="text-danger"></span>
-    </div>
-
-    <hr />
-    <h4>Thiết lập SSH</h4>
-
-    <!-- SSH Configuration Fields -->
-    <div class="form-group">
-        <label for="SshUsername" class="form-label">SSH Username</label>
-        <input id="SshUsername" name="SshUsername" class="form-control" required />
-        <span class="text-danger" data-valmsg-for="SshUsername"></span>
+    <div class="form-group form-check">
+        <input asp-for="Status" class="form-check-input" />
+        <label asp-for="Status" class="form-check-label"></label>
     </div>
     <div class="form-group">
-        <label for="SshPassword" class="form-label">SSH Password</label>
-        <input id="SshPassword" name="SshPassword" type="password" class="form-control" required />
-        <span class="text-danger" data-valmsg-for="SshPassword"></span>
+        <label asp-for="SshUsername" class="control-label"></label>
+        <input asp-for="SshUsername" class="form-control" />
+        <span asp-validation-for="SshUsername" class="text-danger"></span>
     </div>
-
-    <button type="submit" class="btn btn-primary">Kiểm tra và thêm thiết bị</button>
-    <a asp-action="Index" class="btn btn-secondary">Hủy</a>
+    <div class="form-group">
+        <label asp-for="SshPassword" class="control-label"></label>
+        <input asp-for="SshPassword" type="password" class="form-control" />
+        <span asp-validation-for="SshPassword" class="text-danger"></span>
+    </div>
+    <div class="form-group">
+        <input type="submit" value="Create" class="btn btn-primary" />
+        <a asp-action="Index" class="btn btn-secondary">Back to List</a>
+    </div>
 </form>
 
 @section Scripts {
-    @await Html.PartialAsync("_ValidationScriptsPartial")
+    @{
+        await Html.RenderPartialAsync("_ValidationScriptsPartial");
+    }
 }
