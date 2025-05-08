@@ -6,25 +6,32 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using Renci.SshNet;
-
 using DiffPlex.DiffBuilder;
 using NCM.Data;
 using NCM.Models;
 using DiffPlex;
-
+using NCM.Services;
+using System.Net;
+using Lextm.SharpSnmpLib;
+using Lextm.SharpSnmpLib.Messaging;
 namespace NCM.Controllers
 {
     public class DeviceController : Controller
     {
         private readonly ApplicationDbContext _context;
         private readonly IDataProtector _protector;
+        private readonly SnmpService _snmpService;
+
 
         public DeviceController(
             ApplicationDbContext context,
-            IDataProtectionProvider dataProtectionProvider)
+            IDataProtectionProvider dataProtectionProvider,
+                SnmpService snmpService)      // ← thêm vào
+
         {
             _context = context;
             _protector = dataProtectionProvider.CreateProtector("SSHPasswords");
+            _snmpService = snmpService;
         }
 
         // GET: Device
@@ -263,5 +270,45 @@ namespace NCM.Controllers
                 ViewBag.Message = "Chưa có kết quả compliance. Vui lòng kiểm tra.";
             return View(results);
         }
+        public IActionResult SnmpInfo(int id)
+        {
+            var device = _context.Devices.Find(id);
+            if (device == null) return NotFound();
+
+            var info = _snmpService.GetBasicInfo(device.IPAddress);
+            ViewBag.Device = device;
+            return View(info);
+        }
+        // GET: Device/Dashboard/5
+        public async Task<IActionResult> Dashboard(int id)
+        {
+            var device = await _context.Devices.FindAsync(id);
+            if (device == null) return NotFound();
+
+            // Lấy latest metrics
+            var latest = await _context.DeviceSnmpMetrics
+                .Where(m => m.DeviceId == id)
+                .GroupBy(m => m.MetricName)
+                .Select(g => g.OrderByDescending(x => x.Timestamp).FirstOrDefault())
+                .ToListAsync();
+
+            // Lấy lịch sử uptime 24h
+            var history = await _context.DeviceSnmpMetrics
+                .Where(m => m.DeviceId == id && m.MetricName == "SysUpTime" &&
+                            m.Timestamp >= DateTime.UtcNow.AddHours(-24))
+                .OrderBy(m => m.Timestamp)
+                .ToListAsync();
+
+            var vm = new DeviceDashboardViewModel
+            {
+                Device = device,
+                SysName = latest.FirstOrDefault(m => m.MetricName == "SysName")?.MetricValue,
+                SysDescr = latest.FirstOrDefault(m => m.MetricName == "SysDescr")?.MetricValue,
+                Uptime = latest.FirstOrDefault(m => m.MetricName == "SysUpTime")?.MetricValue,
+                History = history
+            };
+            return View(vm);
+        }
+
     }
 }

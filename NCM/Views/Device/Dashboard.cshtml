@@ -1,0 +1,24 @@
+﻿@model DeviceDashboardViewModel
+<h2>Dashboard – @Model.Device.Name</h2>
+<div>
+    <p><strong>SysName:</strong> @Model.SysName</p>
+    <p><strong>SysDescr:</strong> @Model.SysDescr</p>
+    <p><strong>Uptime:</strong> @Model.Uptime</p>
+</div>
+<canvas id="uptimeChart"></canvas>
+@section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        const ctx = document.getElementById('uptimeChart').getContext('2d');
+        const data = {
+            labels: @Html.Raw(Json.Serialize(Model.History.Select(m => m.Timestamp.ToString("HH:mm")))),
+            datasets: [{
+                label: 'Uptime (ticks)',
+                data: @Html.Raw(Json.Serialize(Model.History.Select(m => long.Parse(m.MetricValue.Split(' ')[0])))),
+                fill: false,
+                tension: 0.1
+            }]
+        };
+        new Chart(ctx, { type: 'line', data: data });
+    </script>
+}

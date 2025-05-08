@@ -1,0 +1,18 @@
+﻿@model IDictionary<string,string>
+@{
+    var device = ViewBag.Device;
+    ViewData["Title"] = $"SNMP Info – {device.Name}";
+}
+<h2>SNMP Basic Info for @device.Name</h2>
+<table class="table">
+    <thead>
+        <tr><th>Metric</th><th>Value</th></tr>
+    </thead>
+    <tbody>
+        @foreach (var kv in Model)
+        {
+            <tr><td>@kv.Key</td><td>@kv.Value</td></tr>
+        }
+    </tbody>
+</table>
+<a asp-action="Index">← Back</a>

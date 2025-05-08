@@ -39,7 +39,10 @@ builder.Services.AddHostedService<BackupComplianceService>();
 // 5. Health Checks: EF Core database
 builder.Services.AddHealthChecks()
     .AddDbContextCheck<ApplicationDbContext>("Database");
+builder.Services.AddSingleton<SnmpService>();
 builder.Services.AddHostedService<BackupComplianceService>();
+builder.Services.AddHostedService<SnmpPollingService>();
+
 var app = builder.Build();
 
 // 6. Middleware pipeline

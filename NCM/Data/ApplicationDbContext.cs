@@ -14,5 +14,7 @@ namespace NCM.Data
         public DbSet<DeviceConfig> DeviceConfigs { get; set; }
         public DbSet<ComplianceRule> ComplianceRules { get; set; }
         public DbSet<ComplianceResult> ComplianceResults { get; set; }
+        public DbSet<DeviceSnmpMetric> DeviceSnmpMetrics { get; set; }
+
     }
 }
