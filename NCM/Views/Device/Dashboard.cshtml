@@ -1,24 +1,67 @@
-﻿@model DeviceDashboardViewModel
+﻿@model NCM.Models.Dashboard
+@{
+    ViewData["Title"] = $"Dashboard – {Model.Device.Name}";
+
+    // Chuẩn bị dữ liệu cho Chart.js:
+    // - labels: giờ lấy metric (HH:mm)
+    // - dataPoints: chuyển MetricValue ("hh:mm:ss.ffffff") thành TotalSeconds
+    var labels = Model.History
+        .Select(m => m.Timestamp.ToLocalTime().ToString("HH:mm"))
+        .ToArray();
+
+    var dataPoints = Model.History
+        .Select(m =>
+        {
+            // Ví dụ m.MetricValue = "00:45:50.6100000"
+            // Parse thành TimeSpan, trả về TotalSeconds
+            var ts = TimeSpan.Parse(m.MetricValue);
+            return ts.TotalSeconds;
+        })
+        .ToArray();
+}
+
 <h2>Dashboard – @Model.Device.Name</h2>
-<div>
-    <p><strong>SysName:</strong> @Model.SysName</p>
-    <p><strong>SysDescr:</strong> @Model.SysDescr</p>
-    <p><strong>Uptime:</strong> @Model.Uptime</p>
+
+<div class="mb-4">
+    <p><strong>IP Address:</strong> @Model.Device.IPAddress</p>
+    <p><strong>SysName:</strong>   @Model.SysName</p>
+    <p><strong>SysDescr:</strong>  @Model.SysDescr</p>
+    <p><strong>SysUpTime:</strong> @Model.Uptime</p>
 </div>
-<canvas id="uptimeChart"></canvas>
+
+<canvas id="uptimeChart" height="100"></canvas>
+
 @section Scripts {
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script>
-        const ctx = document.getElementById('uptimeChart').getContext('2d');
-        const data = {
-            labels: @Html.Raw(Json.Serialize(Model.History.Select(m => m.Timestamp.ToString("HH:mm")))),
-            datasets: [{
-                label: 'Uptime (ticks)',
-                data: @Html.Raw(Json.Serialize(Model.History.Select(m => long.Parse(m.MetricValue.Split(' ')[0])))),
-                fill: false,
-                tension: 0.1
-            }]
-        };
-        new Chart(ctx, { type: 'line', data: data });
+        // Lấy dữ liệu từ Razor
+        var labels = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(labels));
+        var data = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(dataPoints));
+
+        var ctx = document.getElementById('uptimeChart').getContext('2d');
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'SysUpTime (seconds)',
+                    data: data,
+                    fill: false,
+                    tension: 0.1
+                }]
+            },
+            options: {
+                scales: {
+                    x: {
+                        display: true,
+                        title: { display: true, text: 'Time (HH:mm)' }
+                    },
+                    y: {
+                        display: true,
+                        title: { display: true, text: 'Uptime (s)' }
+                    }
+                }
+            }
+        });
     </script>
 }

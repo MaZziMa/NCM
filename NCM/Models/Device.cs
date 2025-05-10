@@ -20,6 +20,8 @@ namespace NCM.Models
         public bool Status { get; set; }
 
         public DateTime? LastBackupTime { get; set; }
+        public ICollection<DeviceConfigDiff> ConfigDiffs { get; set; }
+            = new List<DeviceConfigDiff>();
 
         [Required]
         [StringLength(50)]

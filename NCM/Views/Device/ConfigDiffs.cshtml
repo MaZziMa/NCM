@@ -1,0 +1,20 @@
+﻿@model IEnumerable<NCM.Models.DeviceConfigDiff>
+<h3>Config Diffs</h3>
+<table class="table">
+    <thead>
+        <tr><th>Time</th><th>OldID</th><th>NewID</th><th>Diff</th></tr>
+    </thead>
+    <tbody>
+        @foreach (var d in Model)
+        {
+            <tr>
+                <td>@d.CreatedAt</td>
+                <td>@d.OldConfigId</td>
+                <td>@d.NewConfigId</td>
+                <td>
+                    <pre style="font-size:0.85em;">@d.DiffContent</pre>
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>

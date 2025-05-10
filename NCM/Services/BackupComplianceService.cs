@@ -1,107 +1,119 @@
 ﻿using System;
 using System.Linq;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.AspNetCore.DataProtection;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
+using DiffPlex;
+using DiffPlex.DiffBuilder;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using NCM.Data;
-using Renci.SshNet;
+using NCM.Models;
+using DiffPlex.DiffBuilder.Model;
 
 namespace NCM.Services
 {
-    /// <summary>
-    /// Background service định kỳ thực hiện:
-    ///  - Backup cấu hình từ các device qua SSH
-    ///  - Kiểm tra compliance
-    /// </summary>
     public class BackupComplianceService : BackgroundService
     {
         private readonly IServiceScopeFactory _scopeFactory;
         private readonly ILogger<BackupComplianceService> _logger;
-        private readonly TimeSpan _interval;
 
         public BackupComplianceService(
             IServiceScopeFactory scopeFactory,
-            IConfiguration configuration,
             ILogger<BackupComplianceService> logger)
         {
             _scopeFactory = scopeFactory;
             _logger = logger;
-
-            // Đọc interval (giờ) từ config, mặc định 24h
-            var hours = configuration.GetValue<double>("BackupCompliance:IntervalHours", 24);
-            _interval = TimeSpan.FromHours(hours);
         }
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
-            _logger.LogInformation("BackupComplianceService started, interval = {Interval}", _interval);
-
             while (!stoppingToken.IsCancellationRequested)
             {
-                try
+                using var scope = _scopeFactory.CreateScope();
+                var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+                var devices = await db.Devices.ToListAsync(stoppingToken);
+                foreach (var device in devices)
                 {
-                    using var scope = _scopeFactory.CreateScope();
-                    var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-
-                    // Lấy danh sách devices
-                    var devices = db.Devices.ToList();
-
-                    foreach (var device in devices)
+                    try
                     {
-                        // Ví dụ đơn giản: chạy backup/Compliance bằng script SSH
-                        try
+                        // 1. Lấy cấu hình mới qua SSH/Telnet
+                        var cfgContent = await FetchConfigFromDeviceAsync(device);
+
+                        // 2. Lưu cấu hình mới vào bảng DeviceConfigs
+                        var cfg = new DeviceConfig
                         {
-                            // test SSH
-                            using var ssh = new SshClient(device.IPAddress, device.SshUsername,
-                                /* decrypt password nếu bạn bảo vệ trước */
-                                scope.ServiceProvider
-                                     .GetRequiredService<Microsoft.AspNetCore.DataProtection.IDataProtectionProvider>()
-                                     .CreateProtector("SSHPasswords")
-                                     .Unprotect(device.SshPassword)
-                            )
-                            { ConnectionInfo = { Timeout = TimeSpan.FromSeconds(5) } };
+                            DeviceId = device.DeviceId,
+                            ConfigContent = cfgContent,
+                            UploadTime = DateTime.UtcNow
+                        };
+                        db.DeviceConfigs.Add(cfg);
 
-                            ssh.Connect();
-                            var cmd = ssh.RunCommand("show running-config");
-                            ssh.Disconnect();
+                        // (Tuỳ chọn) Cập nhật LastBackupTime trên Device
+                        device.LastBackupTime = DateTime.UtcNow;
+                        db.Devices.Update(device);
 
-                            // Lưu vào DeviceConfigs
-                            var cfg = new Models.DeviceConfig
+                        await db.SaveChangesAsync(stoppingToken);
+
+                        // --- TỰ ĐỘNG CHẠY DIFF ---
+                        var previousCfg = await db.DeviceConfigs
+                            .Where(c => c.DeviceId == device.DeviceId && c.ConfigId != cfg.ConfigId)
+                            .OrderByDescending(c => c.UploadTime)
+                            .FirstOrDefaultAsync(stoppingToken);
+
+                        if (previousCfg != null)
+                        {
+                            // Tạo diff giữa two versions
+                            var differ = new SideBySideDiffBuilder(new Differ());
+                            var diffModel = differ.BuildDiffModel(previousCfg.ConfigContent, cfg.ConfigContent);
+
+                            // Xuất thành văn bản có dấu +,-, 
+                            var sb = new StringBuilder();
+                            foreach (var line in diffModel.NewText.Lines)
+                            {
+                                switch (line.Type)
+                                {
+                                    case ChangeType.Inserted: sb.AppendLine($"+ {line.Text}"); break;
+                                    case ChangeType.Deleted: sb.AppendLine($"- {line.Text}"); break;
+                                    case ChangeType.Unchanged: sb.AppendLine($"  {line.Text}"); break;
+                                    case ChangeType.Modified: sb.AppendLine($"~ {line.Text}"); break;
+                                }
+                            }
+
+                            // Lưu Diff vào DeviceConfigDiffs
+                            var diffEntity = new DeviceConfigDiff
                             {
                                 DeviceId = device.DeviceId,
-                                ConfigContent = cmd.Result,
-                                UploadTime = DateTime.UtcNow
+                                OldConfigId = previousCfg.ConfigId,
+                                NewConfigId = cfg.ConfigId,
+                                DiffContent = sb.ToString(),
+                                CreatedAt = DateTime.UtcNow
                             };
-                            db.DeviceConfigs.Add(cfg);
-                            device.LastBackupTime = cfg.UploadTime;
-                            db.Update(device);
-
-                            // Kiểm tra compliance (ví dụ gọi controller logic hoặc lặp rule)
-                            // ... tương tự action CheckCompliance
-
+                            db.DeviceConfigDiffs.Add(diffEntity);
                             await db.SaveChangesAsync(stoppingToken);
-                            _logger.LogInformation("Backup & compliance for Device {DeviceId} done.", device.DeviceId);
                         }
-                        catch (Exception exDev)
-                        {
-                            _logger.LogWarning(exDev, "Failed to backup/scan device {DeviceId}", device.DeviceId);
-                        }
+                        // --- KẾT THÚC DIFF ---
+
+                        _logger.LogInformation("Backup and diff completed for Device {DeviceId}", device.DeviceId);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Error in backup/diff for Device {DeviceId}", device.DeviceId);
                     }
                 }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Error in BackupComplianceService loop");
-                }
 
-                // Chờ đến lần chạy tiếp theo
-                await Task.Delay(_interval, stoppingToken);
+                // Delay giữa các lần chạy (ví dụ 5 phút)
+                await Task.Delay(TimeSpan.FromMinutes(5), stoppingToken);
             }
+        }
 
-            _logger.LogInformation("BackupComplianceService stopping.");
+        // Giả sử hàm này thực thi SSH/Telnet and return config content
+        private Task<string> FetchConfigFromDeviceAsync(Device device)
+        {
+            // TODO: thay thế bằng logic lấy config thực tế qua SSH/Telnet
+            throw new NotImplementedException();
         }
     }
 }

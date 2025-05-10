@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using NCM.Data;
 
@@ -11,9 +12,11 @@ using NCM.Data;
 namespace NCM.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20250508051040_Dashboard")]
+    partial class Dashboard
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -146,41 +149,6 @@ namespace NCM.Migrations
                     b.ToTable("DeviceConfigs");
                 });
 
-            modelBuilder.Entity("NCM.Models.DeviceConfigDiff", b =>
-                {
-                    b.Property<int>("DiffId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("DiffId"));
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int>("DeviceId")
-                        .HasColumnType("int");
-
-                    b.Property<string>("DiffContent")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<int>("NewConfigId")
-                        .HasColumnType("int");
-
-                    b.Property<int>("OldConfigId")
-                        .HasColumnType("int");
-
-                    b.HasKey("DiffId");
-
-                    b.HasIndex("DeviceId");
-
-                    b.HasIndex("NewConfigId");
-
-                    b.HasIndex("OldConfigId");
-
-                    b.ToTable("DeviceConfigDiffs");
-                });
-
             modelBuilder.Entity("NCM.Models.DeviceSnmpMetric", b =>
                 {
                     b.Property<int>("MetricId")
@@ -240,33 +208,6 @@ namespace NCM.Migrations
                     b.Navigation("Device");
                 });
 
-            modelBuilder.Entity("NCM.Models.DeviceConfigDiff", b =>
-                {
-                    b.HasOne("NCM.Models.Device", "Device")
-                        .WithMany("ConfigDiffs")
-                        .HasForeignKey("DeviceId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("NCM.Models.DeviceConfig", "NewConfig")
-                        .WithMany()
-                        .HasForeignKey("NewConfigId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("NCM.Models.DeviceConfig", "OldConfig")
-                        .WithMany()
-                        .HasForeignKey("OldConfigId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Device");
-
-                    b.Navigation("NewConfig");
-
-                    b.Navigation("OldConfig");
-                });
-
             modelBuilder.Entity("NCM.Models.DeviceSnmpMetric", b =>
                 {
                     b.HasOne("NCM.Models.Device", "Device")
@@ -280,8 +221,6 @@ namespace NCM.Migrations
 
             modelBuilder.Entity("NCM.Models.Device", b =>
                 {
-                    b.Navigation("ConfigDiffs");
-
                     b.Navigation("DeviceConfigs");
                 });
 #pragma warning restore 612, 618

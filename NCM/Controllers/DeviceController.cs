@@ -14,6 +14,9 @@ using NCM.Services;
 using System.Net;
 using Lextm.SharpSnmpLib;
 using Lextm.SharpSnmpLib.Messaging;
+using System.Net.NetworkInformation;
+using System.Threading.Tasks;
+
 namespace NCM.Controllers
 {
     public class DeviceController : Controller
@@ -37,10 +40,29 @@ namespace NCM.Controllers
         // GET: Device
         public async Task<IActionResult> Index()
         {
-            var devices = await _context.Devices
-                .Include(d => d.DeviceConfigs)
-                .ToListAsync();
-            return View(devices);
+            // Lấy danh sách devices từ database
+            var devices = await _context.Devices.ToListAsync();
+
+            // Tạo một list các tác vụ ping
+            var pingTasks = devices.Select(async device =>
+            {
+                try
+                {
+                    using var ping = new Ping(); // Ping class để kiểm tra host :contentReference[oaicite:0]{index=0}
+                    var reply = await ping.SendPingAsync(device.IPAddress, 1000);
+                    device.Status = (reply.Status == IPStatus.Success); // true nếu nhận ICMP reply :contentReference[oaicite:1]{index=1}
+                }
+                catch
+                {
+                    device.Status = false; // coi là offline nếu có exception :contentReference[oaicite:2]{index=2}
+                }
+                return device;
+            });
+
+            // Chờ tất cả ping hoàn thành
+            var model = await Task.WhenAll(pingTasks);
+
+            return View(model);
         }
 
         // GET: Device/Create
@@ -119,7 +141,9 @@ namespace NCM.Controllers
                 $"ssh {device.SshUsername}@{device.IPAddress}\n");
 
             return RedirectToAction(nameof(Index));
+
         }
+
 
         // GET: Device/Edit/5
         public async Task<IActionResult> Edit(int? id)
@@ -299,7 +323,7 @@ namespace NCM.Controllers
                 .OrderBy(m => m.Timestamp)
                 .ToListAsync();
 
-            var vm = new DeviceDashboardViewModel
+            var vm = new Dashboard
             {
                 Device = device,
                 SysName = latest.FirstOrDefault(m => m.MetricName == "SysName")?.MetricValue,
@@ -308,6 +332,16 @@ namespace NCM.Controllers
                 History = history
             };
             return View(vm);
+        }
+        public async Task<IActionResult> ConfigDiffs(int deviceId)
+        {
+            // Lấy tất cả diff của thiết bị, sắp xếp theo thời gian giảm dần
+            var diffs = await _context.DeviceConfigDiffs
+                .Where(d => d.DeviceId == deviceId)
+                .OrderByDescending(d => d.CreatedAt)
+                .ToListAsync();
+
+            return View(diffs);
         }
 
     }

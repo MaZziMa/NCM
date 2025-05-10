@@ -34,10 +34,8 @@
                     @if (prevCfg != null)
                     {
                         <text> | </text>
-                        <a asp-action="Diff"
-                           asp-route-id="@cfg.ConfigId"
-                           asp-route-oldId="@prevCfg.ConfigId">
-                            Diff
+                        <a asp-action="ConfigDiffs" asp-route-deviceId="@device.DeviceId">
+                            View Diffs
                         </a>
                     }
                     @if (prevCfg != null)
